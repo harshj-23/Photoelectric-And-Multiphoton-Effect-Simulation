@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photoelectric & Multiphoton Effect Simulation</title>
+
+<style>
+    :root {
+        color-scheme: dark;
+        --bg: #080f1b;
+        --panel: #0f1a2c;
+        --panel-2: #14233c;
+        --line: #223a5e;
+        --line-strong: #3b5b8c;
+        --text: #f1f5f9;
+        --muted: #a5b8d0;
+        --accent: #38bdf8;
+        --ok: #34d399;
+        --warn: #fbbf24;
+        --idle: #94a3b8;
+    }
+
+    body.mp { --accent: #c084fc; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: var(--text);
+        background:
+            radial-gradient(1200px 600px at 20% -10%, #172d54 0%, transparent 60%),
+            radial-gradient(900px 500px at 100% 0%, #201a42 0%, transparent 55%),
+            var(--bg);
+    }
+
+    .container {
+        height: 100vh;
+        width: 100vw;
+        display: flex;
+        flex-direction: column;
+        padding: 10px 16px;
+        gap: 10px;
+    }
+
+    .status-banner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 9px 20px;
+        border-radius: 8px;
+        border: 1px solid var(--line-strong);
+        background: var(--panel);
+        font-size: 15.5px;
+        font-weight: 700;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        flex: none;
+        background: var(--idle);
+        transition: background 0.3s;
+    }
+
+    .status-banner.ok {
+        background: linear-gradient(90deg, rgba(52,211,153,0.18), rgba(52,211,153,0.06));
+        border-color: rgba(52,211,153,0.7);
+        color: #d1fae5;
+    }
+    .status-banner.ok .status-dot { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+
+    .status-banner.warn {
+        background: linear-gradient(90deg, rgba(251,191,36,0.18), rgba(251,191,36,0.06));
+        border-color: rgba(251,191,36,0.7);
+        color: #fef3c7;
+    }
+    .status-banner.warn .status-dot { background: var(--warn); }
+    .status-banner.idle { color: var(--muted); }
+
+    /* FIX: minmax(0,1fr) lets the left column shrink below the canvas's intrinsic size */
+    .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 390px;
+        gap: 14px;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    }
+
+    .sim-panel {
+        padding: 10px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    h1 { font-size: 17px; font-weight: 700; letter-spacing: 0.2px; }
+    .view-caption { font-size: 13px; color: var(--muted); }
+    .btn-group { display: flex; gap: 8px; }
+
+    .action-btn {
+        background: var(--accent);
+        color: #04121f;
+        border: none;
+        border-radius: 6px;
+        padding: 7px 15px;
+        font-size: 13.5px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: filter 0.15s, transform 0.1s, background 0.2s;
+    }
+    .action-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+
+    .atomic-btn { background: #9333ea; color: #fff; }
+    .atomic-btn.active { background: #c084fc; color: #0f172a; }
+
+    .sim-wrap {
+        flex: 1;
+        min-height: 220px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #07111f;
+        position: relative;
+    }
+
+    #simulation { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+    .bottom-row {
+        height: 145px;
+        flex-shrink: 0;
+        display: grid;
+        grid-template-columns: 1.35fr 1fr;
+        gap: 10px;
+    }
+
+    .graph-card {
+        height: 100%;
+        background: #0a1423;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .expand-graph-btn {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        background: rgba(15, 26, 44, 0.85);
+        border: 1px solid var(--line-strong);
+        color: var(--accent);
+        border-radius: 5px;
+        padding: 4px 10px;
+        font-size: 11.5px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        z-index: 10;
+        transition: all 0.15s ease;
+    }
+    .expand-graph-btn:hover { background: var(--accent); color: #04121f; border-color: var(--accent); }
+
+    #graph { display: block; width: 100%; height: 100%; }
+
+    .results { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: 100%; }
+
+    .result-box {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        text-align: left;
+    }
+
+    .result-box h3 {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 3px;
+    }
+
+    .result-box p { font-size: 16px; font-weight: 800; font-family: ui-monospace, Consolas, monospace; }
+
+    .controls-panel {
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        justify-content: flex-start;
+        overflow-y: auto;
+        text-align: left;
+    }
+
+    .controls-panel h2 {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: #f1f5f9;
+        border-bottom: 2px solid var(--line-strong);
+        padding-bottom: 6px;
+        text-align: left;
+    }
+
+    .control { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
+
+    label, .label {
+        font-weight: 700;
+        font-size: 15px;
+        color: #f8fafc;
+        display: flex;
+        align-items: baseline;
+        justify-content: flex-start;
+        gap: 8px;
+        width: 100%;
+        text-align: left;
+    }
+
+    .value { color: var(--accent); font-size: 16px; font-weight: 800; font-family: ui-monospace, Consolas, monospace; }
+    .sub { font-size: 13px; color: var(--muted); line-height: 1.35; font-weight: 500; text-align: left; }
+
+    select {
+        width: 100%;
+        background: #0c1626;
+        color: #f8fafc;
+        border: 1.5px solid var(--line-strong);
+        border-radius: 6px;
+        padding: 9px 12px;
+        font-size: 14.5px;
+        font-weight: 600;
+        outline: none;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 7px;
+        border-radius: 99px;
+        outline: none;
+        cursor: pointer;
+        background: linear-gradient(to right, var(--accent) var(--p, 50%), #243651 var(--p, 50%));
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid var(--accent);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid var(--accent);
+    }
+
+    .divider { height: 1px; background: var(--line-strong); width: 100%; margin: 4px 0; }
+
+    .check {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: flex-start;
+        cursor: pointer;
+        user-select: none;
+        padding: 4px 0;
+        width: 100%;
+    }
+
+    .check input {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 22px;
+        height: 22px;
+        display: grid;
+        place-content: center;
+        border: 2px solid var(--line-strong);
+        border-radius: 5px;
+        background: #0c1626;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .check input::after {
+        content: "";
+        width: 10px;
+        height: 6px;
+        margin-top: -2px;
+        border-left: 2.5px solid #04121f;
+        border-bottom: 2.5px solid #04121f;
+        transform: rotate(-45deg) scale(0);
+        transition: transform 0.12s;
+    }
+
+    .check input:checked { background: var(--accent); border-color: var(--accent); }
+    .check input:checked::after { transform: rotate(-45deg) scale(1); }
+
+    .check-title { font-weight: 700; font-size: 15px; color: #f8fafc; text-align: left; }
+
+    .mp-info {
+        padding: 10px 12px;
+        border-radius: 6px;
+        background: var(--panel-2);
+        border: 1px solid var(--line-strong);
+        font-size: 12.5px;
+        line-height: 1.4;
+        text-align: left;
+        width: 100%;
+    }
+
+    .mp-info h3 { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 4px; text-align: left; }
+    .mp-info ul { padding-left: 18px; text-align: left; }
+
+    .graph-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(3, 8, 16, 0.88);
+        backdrop-filter: blur(8px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+
+    .graph-modal-overlay.open { display: flex; opacity: 1; }
+
+    .graph-modal-card {
+        background: #0d1829;
+        border: 2px solid var(--line-strong);
+        border-radius: 14px;
+        width: 90vw;
+        max-width: 940px;
+        height: 78vh;
+        max-height: 600px;
+        display: flex;
+        flex-direction: column;
+        padding: 18px 24px;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+        animation: scaleIn 0.2s ease-out;
+    }
+
+    @keyframes scaleIn {
+        from { transform: scale(0.94); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+
+    .graph-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--line);
+        flex-shrink: 0;
+    }
+
+    .graph-modal-header h2 { font-size: 18px; font-weight: 800; color: #fff; }
+
+    .close-modal-btn {
+        background: #1e293b;
+        color: #cbd5e1;
+        border: 1px solid #475569;
+        border-radius: 6px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .close-modal-btn:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
+
+    .graph-modal-body {
+        flex: 1;
+        min-height: 0;
+        margin-top: 14px;
+        background: #07111f;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        position: relative;
+    }
+
+    #modalGraph { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="status-banner idle" id="statusBanner" role="status" aria-live="polite">
+        <span class="status-dot"></span>
+        <span id="statusText">The light source is OFF — click the lamp to turn it ON.</span>
+    </div>
+
+    <div class="layout">
+
+        <section class="card sim-panel" aria-label="Simulation">
+            <div class="panel-head">
+                <div>
+                    <h1>Photoelectric Effect Simulation</h1>
+                    <span class="view-caption" id="viewCaption">Apparatus setup (Click lamp/laser to toggle power)</span>
+                </div>
+
+                <div class="btn-group">
+                    <button type="button" id="atomicButton" class="action-btn atomic-btn" style="display:none;">
+                        At atomic level
+                    </button>
+                    <button type="button" id="zoomButton" class="action-btn">
+                        Show inside tube
+                    </button>
+                </div>
+            </div>
+
+            <div class="sim-wrap">
+                <canvas id="simulation"></canvas>
+            </div>
+
+            <div class="bottom-row">
+                <div class="graph-card">
+                    <button type="button" class="expand-graph-btn" id="openGraphModalBtn" title="Enlarge I-V Graph">
+                        ⛶ Enlarge Graph
+                    </button>
+                    <canvas id="graph"></canvas>
+                </div>
+
+                <div class="results">
+                    <div class="result-box">
+                        <h3>Work Function</h3>
+                        <p id="workFunction">2.14 eV</p>
+                    </div>
+
+                    <div class="result-box">
+                        <h3 id="thirdTitle">Threshold Frequency</h3>
+                        <p id="thirdValue">5.17 × 10¹⁴ Hz</p>
+                    </div>
+
+                    <div class="result-box">
+                        <h3>Maximum KE</h3>
+                        <p id="kineticEnergy">0.00 eV</p>
+                    </div>
+
+                    <div class="result-box">
+                        <h3>Stopping Potential</h3>
+                        <p id="stoppingPotential">0.00 V</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="card controls-panel" aria-label="Controls">
+            <h2>Controls</h2>
+
+            <div class="control">
+                <label for="metal">Target Metal</label>
+                <select id="metal">
+                    <option value="2.14">Cesium (Φ = 2.14 eV)</option>
+                    <option value="2.28">Sodium (Φ = 2.28 eV)</option>
+                    <option value="2.30">Potassium (Φ = 2.30 eV)</option>
+                    <option value="2.87">Calcium (Φ = 2.87 eV)</option>
+                    <option value="4.30">Zinc (Φ = 4.30 eV)</option>
+                    <option value="5.31">Gold (Φ = 5.31 eV)</option>
+                </select>
+            </div>
+
+            <div class="control">
+                <label for="wavelength">
+                    <span>Wavelength (λ):</span>
+                    <span class="value"><span id="wavelengthValue">600</span> nm</span>
+                </label>
+                <input type="range" id="wavelength" min="250" max="1000" step="1" value="600">
+                <span class="sub">
+                    f ≈ <span id="frequencyValue">5.00</span> × 10¹⁴ Hz ·
+                    hν = <span id="photonEnergyValue">2.07</span> eV
+                </span>
+            </div>
+
+            <div class="control">
+                <label for="intensity">
+                    <span id="intensityLabel">Intensity:</span>
+                    <span class="value"><span id="intensityValue">50</span>%</span>
+                </label>
+                <input type="range" id="intensity" min="0" max="100" step="1" value="50">
+                <span class="sub" id="intensityExtra"></span>
+            </div>
+
+            <div class="control">
+                <label for="voltage">
+                    <span>Applied Voltage (V):</span>
+                    <span class="value"><span id="voltageValue">0.0</span> V</span>
+                </label>
+                <input type="range" id="voltage" min="-5" max="5" step="0.1" value="0">
+                <span class="sub">Negative = opposes electron collection</span>
+            </div>
+
+            <div class="divider"></div>
+
+            <label class="check" for="multiphoton">
+                <input type="checkbox" id="multiphoton">
+                <span class="check-title">Multiphoton effect</span>
+            </label>
+
+            <div class="mp-info" id="mpInfo" style="display:none;">
+                <h3>fs-Laser Setup (~100 fs)</h3>
+                <ul>
+                    <li>Ti:sapphire laser, tunable ~800 nm (1.55 eV).</li>
+                    <li>Absorbs n = ⌈φ / hν⌉ photons simultaneously.</li>
+                    <li>Kinetic Energy: KE<sub>max</sub> = n·hν − φ.</li>
+                    <li>Photoemission rate scales nonlinearly as Iⁿ.</li>
+                </ul>
+            </div>
+        </aside>
+
+    </div>
+</div>
+
+<div class="graph-modal-overlay" id="graphModalOverlay" aria-modal="true" role="dialog">
+    <div class="graph-modal-card">
+        <div class="graph-modal-header">
+            <h2>📈 Detailed Current vs. Voltage (I - V) Characteristic</h2>
+            <button type="button" class="close-modal-btn" id="closeGraphModalBtn">✕ Close</button>
+        </div>
+        <div class="graph-modal-body">
+            <canvas id="modalGraph"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Physics constants
+    const PLANCK_CONSTANT = 4.135667696e-15;
+    const ELECTRON_MASS = 9.1093837e-31;
+    const EV_TO_JOULE = 1.602176634e-19;
+    const LIGHT_SPEED_NM = 2998;
+    const MAX_CURRENT = 20;
+    const MIN_ENERGY_FRACTION = 0.15;
+
+    const GOLD_INDEX = 5;
+    const PULSE_INTERVAL = 0.5;
+    const MAX_ELECTRONS_PER_PULSE = 12;
+    const MP_INTENSITY_SCALE = 5;
+
+    // DOM references
+    const canvas = document.getElementById("simulation");
+    const ctx = canvas.getContext("2d");
+    const graphCanvas = document.getElementById("graph");
+    const gctx = graphCanvas.getContext("2d");
+    const modalGraphCanvas = document.getElementById("modalGraph");
+    const mgctx = modalGraphCanvas.getContext("2d");
+    const simWrap = document.querySelector(".sim-wrap");
+
+    const graphModalOverlay = document.getElementById("graphModalOverlay");
+    const openGraphModalBtn = document.getElementById("openGraphModalBtn");
+    const closeGraphModalBtn = document.getElementById("closeGraphModalBtn");
+
+    const metal = document.getElementById("metal");
+    const wavelengthInput = document.getElementById("wavelength");
+    const intensity = document.getElementById("intensity");
+    const voltage = document.getElementById("voltage");
+    const multiphoton = document.getElementById("multiphoton");
+
+    const wavelengthValue = document.getElementById("wavelengthValue");
+    const frequencyValue = document.getElementById("frequencyValue");
+    const photonEnergyValue = document.getElementById("photonEnergyValue");
+    const intensityLabel = document.getElementById("intensityLabel");
+    const intensityValue = document.getElementById("intensityValue");
+    const intensityExtra = document.getElementById("intensityExtra");
+    const voltageValue = document.getElementById("voltageValue");
+
+    const workFunction = document.getElementById("workFunction");
+    const thirdTitle = document.getElementById("thirdTitle");
+    const thirdValue = document.getElementById("thirdValue");
+    const kineticEnergy = document.getElementById("kineticEnergy");
+    const stoppingPotential = document.getElementById("stoppingPotential");
+
+    const statusBanner = document.getElementById("statusBanner");
+    const statusText = document.getElementById("statusText");
+    const zoomButton = document.getElementById("zoomButton");
+    const atomicButton = document.getElementById("atomicButton");
+    const viewCaption = document.getElementById("viewCaption");
+    const mpInfo = document.getElementById("mpInfo");
+
+    // Virtual space
+    const VW = 1000;
+    const VH = 520;
+    let scale = 1;
+    let dpr = 1;
+
+    let sourcePowerOn = false;
+    let isHoveringSource = false;
+    let isModalOpen = false;
+
+    // View States: 'apparatus' | 'inside' | 'atomic'
+    let currentView = 'apparatus';
+
+    let atomicTimer = 0;
+
+    let photons = [];
+    let electrons = [];
+    let lastTime = performance.now();
+    let photonTimer = 0;
+    let pulseTimer = 0;
+    let viewBlend = 0;
+    let meterCurrent = 0;
+    let flowPosition = 0;
+    let lightRGB = [255, 200, 80];
+    let multiMode = false;
+    let savedSettings = null;
+
+    // Layout coordinates
+    const METAL_X = VW * 0.50;
+    const COLLECTOR_X = VW * 0.83;
+    const PLATE_WIDTH = 18;
+    const TUBE = { left: 300, right: 820, top: 75, bottom: 235 };
+    const TUBE_CENTER_Y = 155;
+    const LENS_X = 140;
+    const BEAM_FLARE_X = 345;
+    const FOCUS_LENS_X = 235;
+
+    const EMITTER_X = 475;
+    const COLLECTOR_PLATE_X = 705;
+    const APP_PLATE_TOP = 100;
+    const APP_PLATE_BOTTOM = 210;
+    const APP_PLATE_WIDTH = 9;
+
+    const WIRE_LEFT = 335;
+    const WIRE_RIGHT = 845;
+    const WIRE_TOP = 282;
+    const WIRE_BOTTOM = 438;
+    const VOLTMETER = { x: (EMITTER_X + COLLECTOR_PLATE_X) / 2, y: WIRE_TOP };
+    const AMMETER = { x: COLLECTOR_PLATE_X, y: WIRE_BOTTOM };
+    const SUPPLY = { x: 480, y: WIRE_BOTTOM };
+    const METER_RADIUS = 34;
+
+    const METAL_COLORS = [
+        "#e3c574", "#d3d8e0", "#cdd1d8", "#c0c4c9", "#a9b8c4", "#e8c24f"
+    ];
+    const WIRE_COLOR = "#d2874a";
+
+    // Resizing
+    function resizeCanvas() {
+        dpr = window.devicePixelRatio || 1;
+        const wrapW = simWrap.clientWidth || 800;
+        const wrapH = simWrap.clientHeight || 320;
+
+        scale = Math.min(wrapW / VW, wrapH / VH);
+        if (!scale || scale <= 0) scale = 0.65;
+
+        const cssW = Math.floor(VW * scale);
+        const cssH = Math.floor(VH * scale);
+
+        canvas.style.width = cssW + "px";
+        canvas.style.height = cssH + "px";
+        canvas.width = Math.round(cssW * dpr);
+        canvas.height = Math.round(cssH * dpr);
+    }
+
+    function resizeGraph() {
+        dpr = window.devicePixelRatio || 1;
+        const w = graphCanvas.clientWidth || 320;
+        const h = graphCanvas.clientHeight || 140;
+        graphCanvas.width = Math.round(w * dpr);
+        graphCanvas.height = Math.round(h * dpr);
+
+        if (isModalOpen) {
+            const mw = modalGraphCanvas.clientWidth || 800;
+            const mh = modalGraphCanvas.clientHeight || 450;
+            modalGraphCanvas.width = Math.round(mw * dpr);
+            modalGraphCanvas.height = Math.round(mh * dpr);
+        }
+    }
+
+    function resizeAll() {
+        resizeCanvas();
+        resizeGraph();
+    }
+    window.addEventListener("resize", resizeAll);
+
+    // Modal events
+    function closeModal() {
+        graphModalOverlay.classList.remove("open");
+        isModalOpen = false;
+    }
+
+    openGraphModalBtn.addEventListener("click", function() {
+        graphModalOverlay.classList.add("open");
+        isModalOpen = true;
+        setTimeout(resizeGraph, 20);
+    });
+
+    closeGraphModalBtn.addEventListener("click", closeModal);
+
+    graphModalOverlay.addEventListener("click", function(e) {
+        if (e.target === graphModalOverlay) closeModal();
+    });
+
+    window.addEventListener("keydown", function(e) {
+        if (e.key === "Escape" && isModalOpen) closeModal();
+    });
+
+    // Helpers
+    function clamp(val, low, high) { return Math.min(high, Math.max(low, val)); }
+    function easeInOut(t) { return t * t * (3 - 2 * t); }
+    function css(color, alpha) {
+        if (alpha === undefined) return "rgb(" + color[0] + "," + color[1] + "," + color[2] + ")";
+        return "rgba(" + color[0] + "," + color[1] + "," + color[2] + "," + alpha + ")";
+    }
+    function mixWithWhite(color, amount) {
+        return color.map(function(c) { return Math.round(c + (255 - c) * amount); });
+    }
+    function formatSigned(val, digits) {
+        const txt = Math.abs(val).toFixed(digits);
+        if (Number(txt) === 0) return (0).toFixed(digits);
+        return (val > 0 ? "+" : "−") + txt;
+    }
+    function formatCurrent(val) {
+        if (val <= 0) return "0.0";
+        if (val < 0.1) return val.toFixed(3);
+        if (val < 10) return val.toFixed(2);
+        return val.toFixed(1);
+    }
+    function roundedRectPath(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y, x + w, y + r, r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+        ctx.lineTo(x + r, y + h);
+        ctx.arcTo(x, y + h, x, y + h - r, r);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.closePath();
+    }
+
+    // FIX: accepts "bold sans-serif" / "500 sans-serif" and builds a valid CSS font string
+    function drawText(txt, x, y, size, color, align, font) {
+        const m = (font || "Arial").match(/^(bold|[1-9]00)\s+(.*)$/);
+        const weight = m ? m[1] + " " : "";
+        const family = m ? m[2] : (font || "Arial");
+        ctx.fillStyle = color || "rgba(255,255,255,0.9)";
+        ctx.font = weight + (size || 14) + "px " + family;
+        ctx.textAlign = align || "center";
+        ctx.fillText(txt, x, y);
+    }
+    function drawLine(x1, y1, x2, y2) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+    }
+    function updateSliderFill(slider) {
+        const p = (Number(slider.value) - Number(slider.min)) / (Number(slider.max) - Number(slider.min)) * 100;
+        slider.style.setProperty("--p", p + "%");
+    }
+
+    // Color mapping
+    function getLightColor() {
+        const w = Number(wavelengthInput.value);
+        if (w < 380) return [176, 128, 255];
+        if (w > 780) return [200, 70, 70];
+        let r = 0, g = 0, b = 0;
+        if (w < 440) { r = (440 - w) / 60; b = 1; }
+        else if (w < 490) { g = (w - 440) / 50; b = 1; }
+        else if (w < 510) { g = 1; b = (510 - w) / 20; }
+        else if (w < 580) { r = (w - 510) / 70; g = 1; }
+        else if (w < 645) { r = 1; g = (645 - w) / 65; }
+        else { r = 1; }
+        let k = 1;
+        if (w < 420) k = 0.4 + 0.6 * (w - 380) / 40;
+        else if (w > 700) k = 0.4 + 0.6 * (780 - w) / 80;
+        return [r, g, b].map(function(c) { return Math.round(255 * Math.pow(c * k, 0.8)); });
+    }
+
+    // Photocurrent physics
+    function getPhotocurrent(KE, emitting, V, yieldFactor) {
+        if (!emitting || KE <= 0 || yieldFactor <= 0) return 0;
+        const saturation = MAX_CURRENT * yieldFactor;
+        if (V >= 0) return saturation;
+        const retard = -V;
+        const slowest = MIN_ENERGY_FRACTION * KE;
+        if (retard <= slowest) return saturation;
+        if (retard >= KE) return 0;
+        return saturation * (KE - retard) / (KE - slowest);
+    }
+
+    function getPhysics() {
+        const phi = Number(metal.value);
+        const wavelength = Number(wavelengthInput.value);
+        const f = (LIGHT_SPEED_NM / wavelength) * 1e14;
+        const f0 = phi / PLANCK_CONSTANT;
+        const photonEnergy = PLANCK_CONSTANT * f;
+        const multi = multiphoton.checked;
+
+        const rawLevel = Number(intensity.value) / 100;
+        const level = sourcePowerOn ? rawLevel : 0;
+
+        let n = 1;
+        let KE = 0;
+        let emitting = false;
+
+        if (multi) {
+            n = Math.max(1, Math.ceil(phi / photonEnergy - 1e-9));
+            KE = Math.max(0, n * photonEnergy - phi);
+            emitting = level > 0;
+        } else {
+            KE = Math.max(0, photonEnergy - phi);
+            emitting = (f >= f0) && (level > 0);
+        }
+
+        const yieldFactor = multi ? Math.pow(level, n) : level;
+        const V = Number(voltage.value);
+        const current = getPhotocurrent(KE, emitting, V, yieldFactor);
+
+        return {
+            phi: phi,
+            wavelength: wavelength,
+            f: f,
+            f0: f0,
+            photonEnergy: photonEnergy,
+            multi: multi,
+            n: n,
+            level: level,
+            rawLevel: rawLevel,
+            yieldFactor: yieldFactor,
+            emitting: emitting,
+            KE: KE,
+            stoppingVoltage: KE,
+            V: V,
+            current: current,
+            unit: multi ? "nA" : "µA"
+        };
+    }
+
+    function setStatus(kind, text) {
+        statusBanner.className = "status-banner " + kind;
+        statusText.textContent = text;
+    }
+
+    function updatePhysicsDisplay() {
+        const p = getPhysics();
+
+        updateSliderFill(wavelengthInput);
+        updateSliderFill(intensity);
+        updateSliderFill(voltage);
+
+        wavelengthValue.textContent = p.wavelength;
+        frequencyValue.textContent = (p.f / 1e14).toFixed(2);
+        photonEnergyValue.textContent = p.photonEnergy.toFixed(2);
+        intensityValue.textContent = intensity.value;
+
+        intensityExtra.textContent = p.multi
+            ? "Peak ≈ " + (p.rawLevel * MP_INTENSITY_SCALE).toFixed(1) + " × 10¹⁰ W/cm²"
+            : "";
+
+        voltageValue.textContent = formatSigned(p.V, 1);
+        workFunction.textContent = p.phi.toFixed(2) + " eV";
+
+        if (p.multi) {
+            thirdTitle.textContent = "Quanta Absorbed (n)";
+            thirdValue.textContent = p.n + " photons";
+        } else {
+            thirdTitle.textContent = "Threshold Frequency";
+            thirdValue.textContent = (p.f0 / 1e14).toFixed(2) + " × 10¹⁴ Hz";
+        }
+
+        kineticEnergy.textContent = p.KE.toFixed(2) + " eV";
+        stoppingPotential.textContent = p.stoppingVoltage.toFixed(2) + " V";
+
+        if (!sourcePowerOn) {
+            setStatus("idle", p.multi
+                ? "The femtosecond laser is OFF — click the laser head to turn it ON."
+                : "The light source is OFF — click the lamp to turn it ON."
+            );
+        } else if (p.rawLevel === 0) {
+            setStatus("idle", "Optical intensity is 0% — increase intensity slider to illuminate cathode.");
+        } else if (!p.multi && (p.f < p.f0)) {
+            setStatus("warn", "Photoelectric effect NOT occurring: Photon energy (" + p.photonEnergy.toFixed(2) + " eV) < Work function (" + p.phi.toFixed(2) + " eV).");
+        } else if (p.multi && p.yieldFactor < 0.002) {
+            setStatus("warn", "Multiphoton emission negligible at this intensity — increase laser power.");
+        } else if (p.V < 0 && p.V <= -p.stoppingVoltage) {   // FIX: no false warning at V = 0
+            setStatus("warn", "Retarding voltage reached stopping potential (V₀ = " + p.stoppingVoltage.toFixed(2) + " V) — current is zero.");
+        } else if (p.multi) {
+            setStatus("ok", "Multiphoton effect ACTIVE — " + p.n + "-photon simultaneous excitation liberating photoelectrons.");
+        } else {
+            setStatus("ok", "Photoelectric effect ACTIVE — photoelectrons ejected with KE = " + p.KE.toFixed(2) + " eV.");
+        }
+    }
+
+    function togglePower() {
+        sourcePowerOn = !sourcePowerOn;
+        if (!sourcePowerOn) {
+            photons = [];
+        }
+        updatePhysicsDisplay();
+    }
+
+    // Click & hover hit-box mapping
+    function getVirtualCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        return {
+            vx: clientX / (scale || 1),
+            vy: clientY / (scale || 1)
+        };
+    }
+
+    function isInsideSourceArea(vx, vy) {
+        if (currentView === 'apparatus') {
+            return (vx >= 15 && vx <= 170 && vy >= 95 && vy <= 245);
+        } else if (currentView === 'inside') {
+            return (vx >= 0 && vx <= 120 && vy >= 30 && vy <= VH - 30);
+        } else if (currentView === 'atomic') {
+            // FIX: allow toggling power from the atomic view (power badge / narrative panel area)
+            return (vx >= 40 && vx <= VW - 40 && vy >= 426 && vy <= 498);
+        }
+        return false;
+    }
+
+    canvas.addEventListener("mousemove", function(e) {
+        const coords = getVirtualCoords(e);
+        const inside = isInsideSourceArea(coords.vx, coords.vy);
+        if (inside !== isHoveringSource) {
+            isHoveringSource = inside;
+            canvas.style.cursor = isHoveringSource ? "pointer" : "default";
+        }
+    });
+
+    canvas.addEventListener("mouseleave", function() {
+        isHoveringSource = false;
+        canvas.style.cursor = "default";
+    });
+
+    canvas.addEventListener("click", function(e) {
+        const coords = getVirtualCoords(e);
+        if (isInsideSourceArea(coords.vx, coords.vy)) {
+            togglePower();
+        }
+    });
+
+    // Particle methods
+    function createPhoton() {
+        photons.push({
+            x: 70,
+            u: Math.random() * 2 - 1,
+            j: 0,
+            speed: 350,
+            radius: 4,
+            focused: false,
+            emit: true
+        });
+    }
+
+    function createPulse(physics) {
+        const count = 3 + Math.round(physics.level * 12);
+        const expected = MAX_ELECTRONS_PER_PULSE * physics.yieldFactor;
+        let toEmit = Math.floor(expected + Math.random());
+        toEmit = Math.min(toEmit, count);
+
+        for (let i = 0; i < count; i++) {
+            photons.push({
+                x: 70 - Math.random() * 12,
+                u: (Math.random() * 2 - 1) * 0.9,
+                j: Math.random() * 2 - 1,
+                speed: 350,
+                radius: 4,
+                focused: true,
+                emit: i < toEmit
+            });
+        }
+    }
+
+    function photonInsideY(photon, x) {
+        const t = clamp((x - 70) / (METAL_X - 70), 0, 1);
+        const beam = photon.u * 0.38 * VH;
+        if (!photon.focused) return VH / 2 + beam;
+        return VH / 2 + beam * (1 - t) + photon.j * 0.03 * VH * t;
+    }
+
+    function createElectron(x, y) {
+        const physics = getPhysics();
+        const KE = physics.KE;
+        if (KE <= 0) return;
+
+        const energy = KE * (MIN_ENERGY_FRACTION + (1 - MIN_ENERGY_FRACTION) * Math.random());
+        const energyJoules = energy * EV_TO_JOULE;
+        const realVelocity = Math.sqrt((2 * energyJoules) / ELECTRON_MASS);
+        const visualSpeed = 120 + Math.min(realVelocity / 100000, 500);
+        const angle = (-25 + Math.random() * 50) * Math.PI / 180;
+        const gap = COLLECTOR_X - x;
+
+        let ax = 0;
+        if (physics.V !== 0) {
+            ax = Math.sign(physics.V) * visualSpeed * visualSpeed * Math.abs(physics.V) / (2 * energy * gap);
+        }
+
+        electrons.push({
+            x: x,
+            y: y,
+            vx: visualSpeed * Math.cos(angle),
+            vy: visualSpeed * Math.sin(angle),
+            ax: ax,
+            radius: 5,
+            energy: energy
+        });
+    }
+
+    function updatePhotons(deltaTime) {
+        for (let i = photons.length - 1; i >= 0; i--) {
+            const photon = photons[i];
+            photon.x += photon.speed * deltaTime;
+            photon.y = photonInsideY(photon, photon.x);
+
+            if (photon.x >= METAL_X) {
+                const physics = getPhysics();
+                photons.splice(i, 1);
+                if (physics.emitting && photon.emit) {
+                    createElectron(METAL_X + 8, photonInsideY(photon, METAL_X));
+                }
+            }
+        }
+    }
+
+    function updateElectrons(deltaTime) {
+        for (let i = electrons.length - 1; i >= 0; i--) {
+            const el = electrons[i];
+            el.vx += el.ax * deltaTime;
+            if (el.vx > 520) el.vx = 520;
+
+            el.x += el.vx * deltaTime;
+            el.y += el.vy * deltaTime;
+
+            if (el.x >= COLLECTOR_X) {
+                electrons.splice(i, 1);
+                continue;
+            }
+            if (el.vx < 0 && el.x <= METAL_X + 8) {
+                electrons.splice(i, 1);
+                continue;
+            }
+            if (el.y < 0 || el.y > VH) {
+                electrons.splice(i, 1);
+            }
+        }
+    }
+
+    // Apparatus graphics
+    function drawLamp() {
+        const level = sourcePowerOn ? (Number(intensity.value) / 100) : 0;
+        const bulbX = 126;
+
+        if (isHoveringSource && currentView === 'apparatus') {
+            ctx.save();
+            ctx.strokeStyle = "rgba(56, 189, 248, 0.85)";
+            ctx.lineWidth = 3;
+            roundedRectPath(24, 118, 92, 74, 12);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        roundedRectPath(28, 122, 84, 66, 10);
+        ctx.fillStyle = "#2a3647";
+        ctx.fill();
+        ctx.strokeStyle = isHoveringSource ? "#38bdf8" : "#4a5d75";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.strokeStyle = "#3d4d62";
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 4; i++) {
+            drawLine(42 + i * 14, 134, 42 + i * 14, 176);
+        }
+
+        ctx.fillStyle = "#3b4d64";
+        ctx.beginPath();
+        ctx.moveTo(112, 112);
+        ctx.lineTo(LENS_X, 136);
+        ctx.lineTo(LENS_X, 174);
+        ctx.lineTo(112, 198);
+        ctx.closePath();
+        ctx.fill();
+
+        if (sourcePowerOn && level > 0) {
+            const glow = ctx.createRadialGradient(bulbX, TUBE_CENTER_Y, 3, bulbX, TUBE_CENTER_Y, 62);
+            glow.addColorStop(0, css(lightRGB, 0.15 + 0.6 * level));
+            glow.addColorStop(1, css(lightRGB, 0));
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(bulbX, TUBE_CENTER_Y, 62, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.fillStyle = (sourcePowerOn && level > 0)
+            ? css(mixWithWhite(lightRGB, 0.45))
+            : "#334155";
+        ctx.beginPath();
+        ctx.arc(bulbX, TUBE_CENTER_Y, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = (sourcePowerOn && level > 0) ? css(lightRGB, 0.4 + 0.6 * level) : "#475569";
+        ctx.lineWidth = 3;
+        drawLine(LENS_X, 138, LENS_X, 172);
+
+        drawPowerBadge(70, 155, sourcePowerOn);
+        drawText("Light Source", 70, 205, 12.5);
+        drawText("(Click to toggle)", 70, 220, 10.5, "rgba(255,255,255,0.7)");
+    }
+
+    function drawLaser() {
+        const level = sourcePowerOn ? (Number(intensity.value) / 100) : 0;
+
+        if (isHoveringSource && currentView === 'apparatus') {
+            ctx.save();
+            ctx.strokeStyle = "rgba(192, 132, 252, 0.85)";
+            ctx.lineWidth = 3;
+            roundedRectPath(14, 102, 118, 106, 12);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        roundedRectPath(18, 106, 110, 98, 10);
+        ctx.fillStyle = "#26303f";
+        ctx.fill();
+        ctx.strokeStyle = isHoveringSource ? "#c084fc" : "#5a7894";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = "#35506e";
+        ctx.fillRect(22, 112, 102, 10);
+
+        ctx.fillStyle = sourcePowerOn ? "#34d399" : "#ef4444";
+        ctx.beginPath();
+        ctx.arc(36, 138, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawText("fs", 80, 162, 28, "rgba(255,255,255,0.85)", "center", "Arial");
+        drawText("Ti:sapphire", 74, 184, 11, "rgba(190,215,240,0.8)");
+
+        ctx.fillStyle = "#0e151f";
+        ctx.fillRect(128, 143, 12, 24);
+
+        if (sourcePowerOn && level > 0) {
+            const glow = ctx.createRadialGradient(138, TUBE_CENTER_Y, 2, 138, TUBE_CENTER_Y, 30);
+            glow.addColorStop(0, css(lightRGB, 0.2 + 0.7 * level));
+            glow.addColorStop(1, css(lightRGB, 0));
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(138, TUBE_CENTER_Y, 30, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        drawPowerBadge(74, 138, sourcePowerOn);
+        drawText("Femtosecond Laser", 73, 218, 12.5);
+        drawText("(Click to toggle)", 73, 233, 10.5, "rgba(255,255,255,0.7)");
+    }
+
+    function drawPowerBadge(x, y, isOn) {
+        ctx.save();
+        roundedRectPath(x - 24, y - 9, 48, 18, 4);
+        ctx.fillStyle = isOn ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)";
+        ctx.fill();
+        ctx.strokeStyle = isOn ? "#10b981" : "#ef4444";
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+
+        ctx.fillStyle = isOn ? "#6ee7b7" : "#fca5a5";
+        ctx.font = "bold 9.5px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(isOn ? "⏻ ON" : "⏻ OFF", x, y + 4);
+        ctx.restore();
+    }
+
+    function drawLaserBeam() {
+        const level = sourcePowerOn ? (Number(intensity.value) / 100) : 0;
+        if (level > 0) {
+            const gradient = ctx.createLinearGradient(LENS_X, 0, EMITTER_X, 0);
+            gradient.addColorStop(0, css(lightRGB, 0.14 + 0.45 * level));
+            gradient.addColorStop(1, css(lightRGB, 0.12 + 0.4 * level));
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(LENS_X, TUBE_CENTER_Y - 22);
+            ctx.lineTo(FOCUS_LENS_X, TUBE_CENTER_Y - 22);
+            ctx.lineTo(EMITTER_X - APP_PLATE_WIDTH / 2, TUBE_CENTER_Y);
+            ctx.lineTo(FOCUS_LENS_X, TUBE_CENTER_Y + 22);
+            ctx.lineTo(LENS_X, TUBE_CENTER_Y + 22);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        ctx.beginPath();
+        ctx.ellipse(FOCUS_LENS_X, TUBE_CENTER_Y, 7, 34, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(190,230,255,0.3)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(215,242,255,0.9)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        drawText("Focus lens", FOCUS_LENS_X, 205, 11, "rgba(255,255,255,0.8)");
+    }
+
+    function drawFocusSpot() {
+        const level = sourcePowerOn ? (Number(intensity.value) / 100) : 0;
+        if (level <= 0) return;
+        const x = EMITTER_X + 1;
+        const spot = ctx.createRadialGradient(x, TUBE_CENTER_Y, 1, x, TUBE_CENTER_Y, 16);
+        spot.addColorStop(0, css(mixWithWhite(lightRGB, 0.6), 0.5 + 0.5 * level));
+        spot.addColorStop(1, css(lightRGB, 0));
+        ctx.fillStyle = spot;
+        ctx.beginPath();
+        ctx.arc(x, TUBE_CENTER_Y, 16, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawBeam() {
+        const level = sourcePowerOn ? (Number(intensity.value) / 100) : 0;
+        if (level <= 0) return;
+        const gradient = ctx.createLinearGradient(LENS_X, 0, EMITTER_X, 0);
+        gradient.addColorStop(0, css(lightRGB, 0.10 + 0.40 * level));
+        gradient.addColorStop(1, css(lightRGB, 0.05 + 0.22 * level));
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.moveTo(LENS_X, 138);
+        ctx.lineTo(BEAM_FLARE_X, APP_PLATE_TOP);
+        ctx.lineTo(EMITTER_X - APP_PLATE_WIDTH / 2, APP_PLATE_TOP);
+        ctx.lineTo(EMITTER_X - APP_PLATE_WIDTH / 2, APP_PLATE_BOTTOM);
+        ctx.lineTo(BEAM_FLARE_X, APP_PLATE_BOTTOM);
+        ctx.lineTo(LENS_X, 172);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function tubePath() {
+        const r = (TUBE.bottom - TUBE.top) / 2;
+        ctx.beginPath();
+        ctx.moveTo(TUBE.left + r, TUBE.top);
+        ctx.lineTo(TUBE.right - r, TUBE.top);
+        ctx.arc(TUBE.right - r, TUBE.top + r, r, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(TUBE.left + r, TUBE.bottom);
+        ctx.arc(TUBE.left + r, TUBE.top + r, r, Math.PI / 2, Math.PI * 1.5);
+        ctx.closePath();
+    }
+
+    function drawTubeBody() {
+        const gradient = ctx.createLinearGradient(0, TUBE.top, 0, TUBE.bottom);
+        gradient.addColorStop(0, "rgba(170,215,255,0.22)");
+        gradient.addColorStop(1, "rgba(120,170,220,0.07)");
+        tubePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+    }
+
+    function drawTubeGlass() {
+        const r = (TUBE.bottom - TUBE.top) / 2;
+        tubePath();
+        ctx.strokeStyle = "rgba(190,225,255,0.6)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.lineWidth = 3;
+        ctx.lineCap = "round";
+        drawLine(TUBE.left + r + 20, TUBE.top + 11, TUBE.right - r - 20, TUBE.top + 11);
+        ctx.lineCap = "butt";
+
+        ctx.strokeStyle = "rgba(215,242,255,0.95)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(TUBE.left + r, TUBE.top + r, r, Math.PI * 0.75, Math.PI * 1.25);
+        ctx.stroke();
+    }
+
+    function drawApparatusPlates() {
+        const height = APP_PLATE_BOTTOM - APP_PLATE_TOP;
+        ctx.fillStyle = METAL_COLORS[metal.selectedIndex] || "#b8bec7";
+        ctx.fillRect(EMITTER_X - APP_PLATE_WIDTH / 2, APP_PLATE_TOP, APP_PLATE_WIDTH, height);
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillRect(EMITTER_X - 2, APP_PLATE_TOP, 2, height);
+        ctx.fillStyle = "#59636e";
+        ctx.fillRect(COLLECTOR_PLATE_X - APP_PLATE_WIDTH / 2, APP_PLATE_TOP, APP_PLATE_WIDTH, height);
+    }
+
+    function drawWires() {
+        ctx.strokeStyle = WIRE_COLOR;
+        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        drawLine(EMITTER_X, APP_PLATE_BOTTOM, EMITTER_X, WIRE_TOP);
+        drawLine(COLLECTOR_PLATE_X, APP_PLATE_BOTTOM, COLLECTOR_PLATE_X, WIRE_TOP);
+
+        ctx.beginPath();
+        ctx.moveTo(EMITTER_X, WIRE_TOP);
+        ctx.lineTo(WIRE_LEFT, WIRE_TOP);
+        ctx.lineTo(WIRE_LEFT, WIRE_BOTTOM);
+        ctx.lineTo(WIRE_RIGHT, WIRE_BOTTOM);
+        ctx.lineTo(WIRE_RIGHT, WIRE_TOP);
+        ctx.lineTo(COLLECTOR_PLATE_X, WIRE_TOP);
+        ctx.stroke();
+
+        drawLine(EMITTER_X, WIRE_TOP, COLLECTOR_PLATE_X, WIRE_TOP);
+        ctx.fillStyle = "#24364d";
+        ctx.fillRect(EMITTER_X - 6, TUBE.bottom - 7, 12, 11);
+        ctx.fillRect(COLLECTOR_PLATE_X - 6, TUBE.bottom - 7, 12, 11);
+
+        ctx.fillStyle = WIRE_COLOR;
+        for (const x of [EMITTER_X, COLLECTOR_PLATE_X]) {
+            ctx.beginPath();
+            ctx.arc(x, WIRE_TOP, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    const FLOW_PATH = [
+        [COLLECTOR_PLATE_X, APP_PLATE_BOTTOM], [COLLECTOR_PLATE_X, WIRE_TOP],
+        [WIRE_RIGHT, WIRE_TOP], [WIRE_RIGHT, WIRE_BOTTOM],
+        [WIRE_LEFT, WIRE_BOTTOM], [WIRE_LEFT, WIRE_TOP],
+        [EMITTER_X, WIRE_TOP], [EMITTER_X, APP_PLATE_BOTTOM]
+    ];
+    const FLOW_SPACING = 26;
+    const FLOW_LENGTHS = [];
+    let FLOW_TOTAL = 0;
+    for (let i = 0; i < FLOW_PATH.length - 1; i++) {
+        const dx = FLOW_PATH[i + 1][0] - FLOW_PATH[i][0];
+        const dy = FLOW_PATH[i + 1][1] - FLOW_PATH[i][1];
+        const len = Math.hypot(dx, dy);
+        FLOW_LENGTHS.push(len);
+        FLOW_TOTAL += len;
+    }
+
+    function pointOnFlowPath(dist) {
+        let d = dist;
+        for (let i = 0; i < FLOW_LENGTHS.length; i++) {
+            if (d <= FLOW_LENGTHS[i]) {
+                const t = d / FLOW_LENGTHS[i];
+                return [
+                    FLOW_PATH[i][0] + (FLOW_PATH[i + 1][0] - FLOW_PATH[i][0]) * t,
+                    FLOW_PATH[i][1] + (FLOW_PATH[i + 1][1] - FLOW_PATH[i][1]) * t
+                ];
+            }
+            d -= FLOW_LENGTHS[i];
+        }
+        return FLOW_PATH[FLOW_PATH.length - 1];
+    }
+
+    function drawWireFlow() {
+        if (meterCurrent < 0.01) return;
+        ctx.fillStyle = "rgba(100,205,255,0.95)";
+        const count = Math.floor(FLOW_TOTAL / FLOW_SPACING);
+        for (let k = 0; k < count; k++) {
+            const dist = (flowPosition + k * FLOW_SPACING) % FLOW_TOTAL;
+            const p = pointOnFlowPath(dist);
+            ctx.beginPath();
+            ctx.arc(p[0], p[1], 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function drawMeter(cx, cy, letter, letterColor, name, value, min, max, valueText) {
+        const r = METER_RADIUS, pivotY = cy + 10;
+        ctx.fillStyle = "#1b2635";
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7f99";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.fillStyle = "#eef1f5";
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "#3a4656";
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i <= 4; i++) {
+            const a = (-55 + 110 * i / 4) * Math.PI / 180;
+            const sx = Math.sin(a), sy = -Math.cos(a);
+            drawLine(cx + sx * 26, pivotY + sy * 26, cx + sx * 32, pivotY + sy * 32);
+        }
+
+        const t = clamp((value - min) / (max - min), 0, 1);
+        const angle = (-55 + 110 * t) * Math.PI / 180;
+        ctx.strokeStyle = "#c0392b";
+        ctx.lineWidth = 2;
+        drawLine(cx, pivotY, cx + Math.sin(angle) * 30, pivotY - Math.cos(angle) * 30);
+
+        ctx.fillStyle = "#333";
+        ctx.beginPath();
+        ctx.arc(cx, pivotY, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawText(letter, cx, cy + 28, 15, letterColor, "center", "Arial");
+        const boxX = cx - 38, boxY = cy + r + 6;
+        roundedRectPath(boxX, boxY, 76, 34, 6);
+        ctx.fillStyle = "#0d1620";
+        ctx.fill();
+        ctx.strokeStyle = "#31465e";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        drawText(name, cx, boxY + 13, 10, "#8fa6bf");
+        drawText(valueText, cx, boxY + 28, 13, "#7dffb0", "center", "'Courier New', monospace");
+    }
+
+    function drawSupply(V) {
+        const cx = SUPPLY.x, cy = SUPPLY.y;
+        ctx.fillStyle = "#07111f";
+        ctx.fillRect(cx - 28, cy - 18, 56, 36);
+        ctx.strokeStyle = WIRE_COLOR;
+        ctx.lineWidth = 3;
+        drawLine(cx - 28, cy, cx - 12, cy);
+        drawLine(cx + 12, cy, cx + 28, cy);
+
+        const longX = V >= 0 ? cx + 12 : cx - 12;
+        const shortX = V >= 0 ? cx - 12 : cx + 12;
+        ctx.strokeStyle = "#e8edf3";
+        ctx.lineWidth = 3;
+        drawLine(longX, cy - 14, longX, cy + 14);
+        ctx.lineWidth = 6;
+        drawLine(shortX, cy - 7, shortX, cy + 7);
+
+        if (V !== 0) {
+            drawText("+", longX, cy - 22, 14, "#ff8c7a");
+            drawText("−", shortX, cy - 22, 14, "#7ab8ff");
+        }
+        drawText("Variable DC supply", cx, cy + 34, 12, "rgba(255,255,255,0.8)");
+    }
+
+    function drawCircuit(physics) {
+        drawWireFlow();
+        drawSupply(physics.V);
+        drawMeter(VOLTMETER.x, VOLTMETER.y, "V", "#1f4e8c", "Voltmeter", physics.V, -5, 5, formatSigned(physics.V, 2) + " V");
+        drawMeter(AMMETER.x, AMMETER.y, "A", "#a33a2a", "Ammeter", meterCurrent, 0, MAX_CURRENT, formatCurrent(meterCurrent) + " " + physics.unit);
+    }
+
+    function drawApparatusParticles() {
+        for (const photon of photons) {
+            const p = photonToApparatus(photon);
+            ctx.strokeStyle = css(lightRGB, 0.5);
+            ctx.lineWidth = 1.5;
+            drawLine(p.x - 14, p.y, p.x, p.y);
+            ctx.fillStyle = css(mixWithWhite(lightRGB, 0.35));
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        for (const el of electrons) {
+            const p = electronToApparatus(el);
+            const glow = ctx.createRadialGradient(p.x, p.y, 0.5, p.x, p.y, 8);
+            glow.addColorStop(0, "rgba(100,200,255,0.9)");
+            glow.addColorStop(1, "rgba(100,200,255,0)");
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#55c7ff";
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function photonToApparatus(photon) {
+        const t = clamp((photon.x - 70) / (METAL_X - 70), 0, 1);
+        const x = LENS_X + t * (EMITTER_X - LENS_X);
+        if (photon.focused) {
+            const half = 22 * photon.u;
+            let y;
+            if (x < FOCUS_LENS_X) y = TUBE_CENTER_Y + half;
+            else {
+                const s = (x - FOCUS_LENS_X) / (EMITTER_X - FOCUS_LENS_X);
+                y = TUBE_CENTER_Y + half * (1 - s) + photon.j * 3 * s;
+            }
+            return { x: x, y: y };
+        }
+        const targetY = APP_PLATE_TOP + (0.5 + photon.u * 0.38) * (APP_PLATE_BOTTOM - APP_PLATE_TOP);
+        const spread = x < BEAM_FLARE_X ? 0.31 + 0.69 * (x - LENS_X) / (BEAM_FLARE_X - LENS_X) : 1;
+        return { x: x, y: TUBE_CENTER_Y + (targetY - TUBE_CENTER_Y) * spread };
+    }
+
+    function electronToApparatus(el) {
+        const t = (el.x - METAL_X) / (COLLECTOR_X - METAL_X);
+        return {
+            x: (EMITTER_X + 5) + t * ((COLLECTOR_PLATE_X - 5) - (EMITTER_X + 5)),
+            y: APP_PLATE_TOP + clamp(el.y / VH, 0, 1) * (APP_PLATE_BOTTOM - APP_PLATE_TOP)
+        };
+    }
+
+    function drawApparatus(physics) {
+        drawTubeBody();
+        if (multiMode) {
+            drawLaserBeam();
+            drawLaser();
+        } else {
+            drawBeam();
+            drawLamp();
+        }
+        drawApparatusPlates();
+        if (multiMode) drawFocusSpot();
+        drawApparatusParticles();
+        drawTubeGlass();
+        drawWires();
+        drawCircuit(physics);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.lineWidth = 1;
+        drawText(multiMode ? "Sample (metal)" : "Emitter (metal)", EMITTER_X, 56, 14);
+        drawLine(EMITTER_X, 62, EMITTER_X, APP_PLATE_TOP - 3);
+        drawText("Collector", COLLECTOR_PLATE_X, 56, 14);
+        drawLine(COLLECTOR_PLATE_X, 62, COLLECTOR_PLATE_X, APP_PLATE_TOP - 3);
+        drawText(multiMode ? "Vacuum window" : "Quartz window", 335, 262, 14);
+        drawLine(335, 227, 335, 246);
+        drawText(multiMode ? "UHV chamber" : "Evacuated tube", 775, 262, 14);
+    }
+
+    function drawInsideWindow() {
+        const x = 34, top = 40, height = VH - 80;
+        const level = sourcePowerOn ? (Number(intensity.value) / 100) : 0;
+
+        if (sourcePowerOn && level > 0) {
+            const glow = ctx.createRadialGradient(x, VH / 2, 10, x, VH / 2, 280);
+            glow.addColorStop(0, css(lightRGB, 0.30));
+            glow.addColorStop(1, css(lightRGB, 0));
+            ctx.fillStyle = glow;
+            ctx.fillRect(0, 0, 320, VH);
+        }
+
+        ctx.fillStyle = "rgba(190,230,255,0.45)";
+        ctx.fillRect(x, top, 12, height);
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.fillRect(x + 2, top, 2, height);
+
+        if (isHoveringSource && currentView === 'inside') {
+            ctx.strokeStyle = "rgba(56, 189, 248, 0.8)";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x - 6, top - 4, 24, height + 8);
+        }
+
+        drawPowerBadge(x + 6, VH - 50, sourcePowerOn);
+        drawText(multiMode ? "Vacuum window" : "Quartz window", x - 10, VH - 25, 14, "white", "left");
+    }
+
+    function drawInside() {
+        ctx.fillStyle = "#07111f";
+        ctx.fillRect(0, 0, VW, VH);
+
+        ctx.strokeStyle = "rgba(170,215,255,0.28)";
+        ctx.lineWidth = 6;
+        drawLine(0, 14, VW, 14);
+        drawLine(0, VH - 14, VW, VH - 14);
+
+        drawInsideWindow();
+
+        const level = sourcePowerOn ? (Number(intensity.value) / 100) : 0;
+        if (multiMode && level > 0) {
+            const spot = ctx.createRadialGradient(METAL_X, VH / 2, 2, METAL_X, VH / 2, 70);
+            spot.addColorStop(0, css(mixWithWhite(lightRGB, 0.5), 0.35 + 0.5 * level));
+            spot.addColorStop(1, css(lightRGB, 0));
+            ctx.fillStyle = spot;
+            ctx.beginPath();
+            ctx.arc(METAL_X, VH / 2, 70, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.fillStyle = METAL_COLORS[metal.selectedIndex] || "#b8bec7";
+        ctx.fillRect(METAL_X, 60, PLATE_WIDTH, VH - 120);
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.fillRect(METAL_X + 4, 60, 4, VH - 120);
+        drawText(multiMode ? "Sample (metal)" : "Metal Surface", METAL_X + 9, 40, 17, "white");
+
+        ctx.fillStyle = "#59636e";
+        ctx.fillRect(COLLECTOR_X, 60, PLATE_WIDTH, VH - 120);
+        drawText("Collector", COLLECTOR_X + 9, 40, 17, "white");
+
+        const V = Number(voltage.value);
+        if (V !== 0) {
+            const y = VH - 60 + 26;
+            drawText(V > 0 ? "−" : "+", METAL_X + 9, y, 24, V > 0 ? "#7ab8ff" : "#ff8c7a");
+            drawText(V > 0 ? "+" : "−", COLLECTOR_X + 9, y, 24, V > 0 ? "#ff8c7a" : "#7ab8ff");
+        }
+
+        for (const ph of photons) {
+            const trailY = photonInsideY(ph, ph.x - 20);
+            ctx.strokeStyle = css(lightRGB, 0.45);
+            ctx.lineWidth = 2;
+            drawLine(ph.x - 20, trailY, ph.x, ph.y);
+            ctx.fillStyle = css(mixWithWhite(lightRGB, 0.35));
+            ctx.beginPath();
+            ctx.arc(ph.x, ph.y, ph.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        for (const el of electrons) {
+            const grad = ctx.createRadialGradient(el.x, el.y, 1, el.x, el.y, 15);
+            grad.addColorStop(0, "rgba(100,200,255,1)");
+            grad.addColorStop(1, "rgba(100,200,255,0)");
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(el.x, el.y, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#55c7ff";
+            ctx.beginPath();
+            ctx.arc(el.x, el.y, el.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        drawText(multiMode ? "Laser pulses" : "Photons", VW * 0.28, VH - 25, 14, "white");
+        drawText("Photoelectrons", VW * 0.66, VH - 25, 14, "white");
+        drawText(multiMode ? "Inside UHV chamber" : "Inside the tube", 24, 30, 14, "rgba(160,200,240,0.85)", "left");
+
+        ctx.strokeStyle = "rgba(120,170,220,0.55)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, VW - 2, VH - 2);
+    }
+
+    // ============================================================
+    // ATOMIC LEVEL MULTIPHOTON VISUALIZATION VIEW
+    // ============================================================
+    function drawAtomicView(p) {
+        ctx.fillStyle = "#050b14";
+        ctx.fillRect(0, 0, VW, VH);
+
+        ctx.strokeStyle = "rgba(34, 58, 94, 0.35)";
+        ctx.lineWidth = 1;
+        for (let x = 40; x < VW; x += 40) { drawLine(x, 0, x, VH); }
+        for (let y = 40; y < VH; y += 40) { drawLine(0, y, VW, y); }
+
+        drawText("Atomic Level: Multiphoton Quantum Transition Ladder", VW / 2, 28, 16, "#c084fc", "center", "bold sans-serif");
+        drawText(
+            "Laser Quanta: hν = " + p.photonEnergy.toFixed(2) + " eV | Target: " + metal.options[metal.selectedIndex].text.split(" ")[0] +
+            " (Φ = " + p.phi.toFixed(2) + " eV) | Simultaneous Absorption: n = " + p.n + " photons",
+            VW / 2, 48, 12.5, "rgba(226, 232, 240, 0.8)", "center"
+        );
+
+        const n = p.n;
+        const totalEnergy = n * p.photonEnergy;
+        const maxDisplayE = Math.max(totalEnergy + 0.8, p.phi + 1.2);
+
+        const ladderLeft = 70;
+        const ladderRight = 440;
+        const ladderTop = 80;
+        const ladderBottom = 410;
+        const ladderH = ladderBottom - ladderTop;
+
+        function energyToY(e) {
+            return ladderBottom - (e / maxDisplayE) * ladderH;
+        }
+
+        ctx.strokeStyle = "#475569";
+        ctx.lineWidth = 2;
+        drawLine(ladderLeft, ladderBottom + 10, ladderLeft, ladderTop - 10);
+        ctx.beginPath();
+        ctx.moveTo(ladderLeft - 5, ladderTop - 6);
+        ctx.lineTo(ladderLeft, ladderTop - 16);
+        ctx.lineTo(ladderLeft + 5, ladderTop - 6);
+        ctx.fillStyle = "#475569";
+        ctx.fill();
+
+        drawText("Energy (eV)", ladderLeft - 10, ladderTop - 18, 11, "#94a3b8", "center");
+
+        for (let ev = 0; ev <= Math.floor(maxDisplayE); ev++) {
+            const ty = energyToY(ev);
+            ctx.strokeStyle = "#475569";
+            ctx.lineWidth = 1.5;
+            drawLine(ladderLeft - 6, ty, ladderLeft, ty);
+            drawText(ev + " eV", ladderLeft - 12, ty + 4, 10, "#94a3b8", "right", "monospace");
+        }
+
+        const gy = energyToY(0);
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 3.5;
+        drawLine(ladderLeft + 15, gy, ladderRight, gy);
+        drawText("Ground Level (E₀ = 0 eV)", ladderRight + 8, gy + 4, 12, "#38bdf8", "left", "bold sans-serif");
+
+        for (let s = 1; s < n; s++) {
+            const vy = energyToY(s * p.photonEnergy);
+            ctx.save();
+            ctx.setLineDash([6, 5]);
+            ctx.strokeStyle = "#c084fc";
+            ctx.lineWidth = 2;
+            drawLine(ladderLeft + 15, vy, ladderRight, vy);
+            ctx.restore();
+            drawText("Virtual State " + s + " (" + (s * p.photonEnergy).toFixed(2) + " eV)", ladderRight + 8, vy + 4, 11.5, "#d8b4fe", "left");
+        }
+
+        const wy = energyToY(p.phi);
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 2.5;
+        drawLine(ladderLeft + 15, wy, ladderRight + 30, wy);
+        ctx.restore();
+        drawText("Ionization Barrier Φ = " + p.phi.toFixed(2) + " eV", ladderRight + 36, wy + 4, 12, "#f87171", "left", "bold sans-serif");
+
+        const cy = energyToY(totalEnergy);
+        ctx.strokeStyle = "#34d399";
+        ctx.lineWidth = 3;
+        drawLine(ladderLeft + 15, cy, ladderRight, cy);
+        drawText("Continuum: KE = " + p.KE.toFixed(2) + " eV (" + totalEnergy.toFixed(2) + " eV)", ladderRight + 8, cy + 4, 12, "#34d399", "left", "bold sans-serif");
+
+        const stepDuration = 0.95;
+        const cycleDuration = n * stepDuration + 1.6;
+        const curTime = sourcePowerOn ? (atomicTimer % cycleDuration) : 0;
+
+        let activeStep = Math.min(n, Math.floor(curTime / stepDuration));
+        let stepProgress = (curTime - activeStep * stepDuration) / stepDuration;
+        const isEmitted = curTime >= n * stepDuration;
+
+        let electronEnergy = 0;
+        if (!sourcePowerOn) {
+            electronEnergy = 0;
+        } else if (isEmitted) {
+            electronEnergy = totalEnergy;
+        } else {
+            const baseE = activeStep * p.photonEnergy;
+            const targetE = (activeStep + 1) * p.photonEnergy;
+            if (stepProgress < 0.6) {
+                electronEnergy = baseE;
+            } else {
+                const leapT = easeInOut((stepProgress - 0.6) / 0.4);
+                electronEnergy = baseE + leapT * (targetE - baseE);
+            }
+        }
+
+        const elX = ladderLeft + 90;
+        const elY = energyToY(electronEnergy);
+
+        if (sourcePowerOn && !isEmitted && activeStep < n) {
+            const fromY = energyToY(activeStep * p.photonEnergy);
+            const toY = energyToY((activeStep + 1) * p.photonEnergy);
+
+            ctx.strokeStyle = "rgba(192, 132, 252, 0.6)";
+            ctx.lineWidth = 2;
+            drawLine(elX, fromY, elX, toY);
+            drawText("+hν (" + p.photonEnergy.toFixed(2) + " eV)", elX + 16, (fromY + toY) / 2 + 4, 11, "#e9d5ff", "left");
+        }
+
+        const elGlow = ctx.createRadialGradient(elX, elY, 1, elX, elY, 14);
+        elGlow.addColorStop(0, "rgba(56, 189, 248, 1)");
+        elGlow.addColorStop(1, "rgba(56, 189, 248, 0)");
+        ctx.fillStyle = elGlow;
+        ctx.beginPath();
+        ctx.arc(elX, elY, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#38bdf8";
+        ctx.beginPath();
+        ctx.arc(elX, elY, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Right-side atom model (FIX: moved right so shells don't overlap ladder labels)
+        const atomCenterX = 830;
+        const atomCenterY = 230;
+        const baseRadius = 38;
+        const deltaRadius = 24;
+
+        const nucGlow = ctx.createRadialGradient(atomCenterX, atomCenterY, 2, atomCenterX, atomCenterY, 28);
+        nucGlow.addColorStop(0, "#fbbf24");
+        nucGlow.addColorStop(0.5, "#d97706");
+        nucGlow.addColorStop(1, "rgba(217, 119, 6, 0)");
+        ctx.fillStyle = nucGlow;
+        ctx.beginPath();
+        ctx.arc(atomCenterX, atomCenterY, 28, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#fef3c7";
+        ctx.beginPath();
+        ctx.arc(atomCenterX, atomCenterY, 12, 0, Math.PI * 2);
+        ctx.fill();
+        drawText("+", atomCenterX, atomCenterY + 4, 15, "#78350f", "center", "bold sans-serif");
+        drawText("Nucleus", atomCenterX, atomCenterY + 36, 11, "#fbbf24", "center");
+
+        for (let s = 0; s <= n; s++) {
+            const r = baseRadius + s * deltaRadius;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(atomCenterX, atomCenterY, r, 0, Math.PI * 2);
+            if (s === 0) {
+                ctx.strokeStyle = "rgba(56, 189, 248, 0.45)";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            } else if (s === n) {
+                ctx.strokeStyle = "rgba(52, 211, 153, 0.6)";
+                ctx.setLineDash([4, 4]);
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            } else {
+                ctx.strokeStyle = "rgba(192, 132, 252, 0.35)";
+                ctx.setLineDash([3, 4]);
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        let curShell = 0;
+        if (!sourcePowerOn) curShell = 0;
+        else if (isEmitted) curShell = n;
+        else {
+            if (stepProgress < 0.6) curShell = activeStep;
+            else curShell = activeStep + easeInOut((stepProgress - 0.6) / 0.4);
+        }
+
+        let orbRadius = baseRadius + curShell * deltaRadius;
+        let orbAngle = atomicTimer * 2.8;
+
+        let orbElectronX = atomCenterX + Math.cos(orbAngle) * orbRadius;
+        let orbElectronY = atomCenterY + Math.sin(orbAngle) * orbRadius;
+
+        if (sourcePowerOn && isEmitted) {
+            const flightTime = curTime - n * stepDuration;
+            const flyDist = flightTime * 140;
+            const startX = atomCenterX + Math.cos(orbAngle) * (baseRadius + n * deltaRadius);
+            const startY = atomCenterY + Math.sin(orbAngle) * (baseRadius + n * deltaRadius);
+            // FIX: keep the ejected electron inside the canvas / above the narrative panel
+            orbElectronX = clamp(orbElectronX + Math.cos(orbAngle) * flyDist, 12, VW - 12);
+            orbElectronY = clamp(orbElectronY + Math.sin(orbAngle) * flyDist - (flightTime * 20), 60, 415);
+
+            ctx.strokeStyle = "rgba(52, 211, 153, 0.4)";
+            ctx.lineWidth = 2;
+            drawLine(startX, startY, orbElectronX, orbElectronY);
+        }
+
+        const orbGlow = ctx.createRadialGradient(orbElectronX, orbElectronY, 1, orbElectronX, orbElectronY, 15);
+        orbGlow.addColorStop(0, "rgba(56, 189, 248, 1)");
+        orbGlow.addColorStop(1, "rgba(56, 189, 248, 0)");
+        ctx.fillStyle = orbGlow;
+        ctx.beginPath();
+        ctx.arc(orbElectronX, orbElectronY, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#38bdf8";
+        ctx.beginPath();
+        ctx.arc(orbElectronX, orbElectronY, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        drawText("e⁻", orbElectronX + 10, orbElectronY - 8, 11.5, "#bae6fd", "left", "bold sans-serif");
+
+        // Incoming photon packet
+        if (sourcePowerOn && !isEmitted && stepProgress < 0.6) {
+            const pFrac = stepProgress / 0.6;
+            const startPhotonX = ladderLeft - 40;
+            const targetPhotonX = elX;
+            const curPhotonX = startPhotonX + pFrac * (targetPhotonX - startPhotonX);
+            const photonY = energyToY(activeStep * p.photonEnergy);
+
+            ctx.strokeStyle = css(lightRGB, 0.8);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let px = 0; px < 24; px++) {
+                const py = Math.sin((curPhotonX - px) * 0.4) * 5;
+                if (px === 0) ctx.moveTo(curPhotonX - px, photonY + py);
+                else ctx.lineTo(curPhotonX - px, photonY + py);
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = css(mixWithWhite(lightRGB, 0.5));
+            ctx.beginPath();
+            ctx.arc(curPhotonX, photonY, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        if (sourcePowerOn && !isEmitted && stepProgress >= 0.58 && stepProgress <= 0.68) {
+            const flashR = (stepProgress - 0.58) * 200;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+            ctx.beginPath();
+            ctx.arc(elX, elY, flashR, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        roundedRectPath(40, 426, VW - 80, 72, 8);
+        ctx.fillStyle = "rgba(15, 26, 44, 0.85)";
+        ctx.fill();
+        ctx.strokeStyle = isHoveringSource ? "#c084fc" : "#334e68";
+        ctx.lineWidth = isHoveringSource ? 2.5 : 1.5;
+        ctx.stroke();
+
+        let stageNarrative = "";
+        let stageBadge = "";
+        let badgeColor = "#c084fc";
+
+        if (!sourcePowerOn) {
+            stageBadge = "LASER OFF";
+            badgeColor = "#ef4444";
+            stageNarrative = "Femtosecond laser is OFF. Click this panel or raise the intensity slider to turn it ON.";
+        } else if (isEmitted) {
+            stageBadge = "STAGE " + n + "/" + n + " • PHOTOELECTRON LIBERATED";
+            badgeColor = "#34d399";
+            stageNarrative = "All " + n + " photons absorbed! Total energy delivered: " + totalEnergy.toFixed(2) + " eV exceeds work function Φ (" + p.phi.toFixed(2) +
+                             " eV). Electron ejected with KE = " + p.KE.toFixed(2) + " eV!";
+        } else {
+            const photonNum = activeStep + 1;
+            stageBadge = "STAGE " + photonNum + "/" + n + " • QUANTA ABSORPTION";
+            badgeColor = photonNum === n ? "#34d399" : "#c084fc";
+            if (photonNum < n) {
+                stageNarrative = "Photon " + photonNum + " of " + n + " (+ " + p.photonEnergy.toFixed(2) + " eV) absorbed within virtual state lifetime (~1 fs). Exciting electron to Virtual State " +
+                                 photonNum + " (" + (photonNum * p.photonEnergy).toFixed(2) + " eV).";
+            } else {
+                stageNarrative = "Final photon " + n + " of " + n + " arriving! Will supply necessary energy to surpass the " + p.phi.toFixed(2) + " eV work function barrier.";
+            }
+        }
+
+        drawText(stageBadge, 60, 450, 12, badgeColor, "left", "bold sans-serif");
+        drawText(stageNarrative, 60, 478, 13, "#f1f5f9", "left", "500 sans-serif");
+    }
+
+    function draw(physics) {
+        ctx.setTransform(dpr * (scale || 1), 0, 0, dpr * (scale || 1), 0, 0);
+        ctx.clearRect(0, 0, VW, VH);
+
+        if (currentView === 'atomic') {
+            drawAtomicView(physics);
+            return;
+        }
+
+        ctx.fillStyle = "#07111f";
+        ctx.fillRect(0, 0, VW, VH);
+
+        const blend = easeInOut(viewBlend);
+        if (blend < 1) {
+            ctx.save();
+            ctx.globalAlpha = 1 - blend;
+            const zoom = 1 + blend * 1.6;
+            ctx.translate(VOLTMETER.x, TUBE_CENTER_Y);
+            ctx.scale(zoom, zoom);
+            ctx.translate(-VOLTMETER.x, -TUBE_CENTER_Y);
+            drawApparatus(physics);
+            ctx.restore();
+        }
+        if (blend > 0) {
+            ctx.save();
+            ctx.globalAlpha = blend;
+            const grow = 0.55 + 0.45 * blend;
+            ctx.translate(VW / 2, VH / 2);
+            ctx.scale(grow, grow);
+            ctx.translate(-VW / 2, -VH / 2);
+            drawInside();
+            ctx.restore();
+        }
+    }
+
+    // Graph renderer
+    function renderIVGraphOnContext(g, w, h, p, isModal) {
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.clearRect(0, 0, w, h);
+
+        const left = isModal ? 65 : 44;
+        const right = isModal ? 24 : 14;
+        const top = isModal ? 30 : 22;
+        const bottom = isModal ? 34 : 24;
+
+        const pw = Math.max(10, w - left - right);
+        const ph = Math.max(10, h - top - bottom);
+        const X = function(v) { return left + (v + 5) / 10 * pw; };
+        const Y = function(i) { return top + ph - clamp(i, 0, MAX_CURRENT) / MAX_CURRENT * ph; };
+
+        g.textBaseline = "alphabetic";
+        g.fillStyle = "#e8eef7";
+        g.font = isModal ? "bold 15px 'Segoe UI', Arial, sans-serif" : "bold 12px 'Segoe UI', Arial, sans-serif";
+        g.textAlign = "left";
+        g.fillText(isModal ? "Photoelectric Characteristic: Current I vs Applied Potential V" : "I-V Characteristic", isModal ? 16 : 8, isModal ? 18 : 14);
+
+        g.fillStyle = "#8fa3bf";
+        g.font = isModal ? "14px ui-monospace, Consolas, monospace" : "12px ui-monospace, Consolas, monospace";
+        g.textAlign = "right";
+        g.fillText("Operating: " + formatSigned(p.V, 1) + " V, " + formatCurrent(meterCurrent) + " " + p.unit, w - right, isModal ? 18 : 14);
+
+        g.font = isModal ? "12px 'Segoe UI', Arial, sans-serif" : "10px 'Segoe UI', Arial, sans-serif";
+        g.lineWidth = 1;
+        for (let v = -5; v <= 5; v += (isModal ? 1 : 2)) {
+            g.strokeStyle = v === 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.08)";
+            g.beginPath();
+            g.moveTo(X(v), top);
+            g.lineTo(X(v), top + ph);
+            g.stroke();
+            g.fillStyle = "#8fa3bf";
+            g.textAlign = "center";
+            g.fillText(v + (isModal ? " V" : ""), X(v), top + ph + (isModal ? 16 : 11));
+        }
+
+        for (let i = 0; i <= MAX_CURRENT; i += (isModal ? 5 : 10)) {
+            g.strokeStyle = "rgba(255,255,255,0.08)";
+            g.beginPath();
+            g.moveTo(left, Y(i));
+            g.lineTo(left + pw, Y(i));
+            g.stroke();
+            g.fillStyle = "#8fa3bf";
+            g.textAlign = "right";
+            g.fillText(i + (isModal ? " " + p.unit : ""), left - 6, Y(i) + 4);
+        }
+
+        const accent = getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#38bdf8";
+        const points = [];
+        for (let v = -5; v <= 5.0001; v += 0.05) {
+            points.push([X(v), Y(getPhotocurrent(p.KE, p.emitting, v, p.yieldFactor))]);
+        }
+
+        const fill = g.createLinearGradient(0, top, 0, top + ph);
+        fill.addColorStop(0, "rgba(56,189,248,0.32)");
+        fill.addColorStop(1, "rgba(56,189,248,0)");
+        g.beginPath();
+        g.moveTo(points[0][0], top + ph);
+        for (let idx = 0; idx < points.length; idx++) {
+            g.lineTo(points[idx][0], points[idx][1]);
+        }
+        g.lineTo(points[points.length - 1][0], top + ph);
+        g.closePath();
+        g.fillStyle = fill;
+        g.fill();
+
+        g.beginPath();
+        for (let idx = 0; idx < points.length; idx++) {
+            if (idx === 0) g.moveTo(points[idx][0], points[idx][1]);
+            else g.lineTo(points[idx][0], points[idx][1]);
+        }
+        g.strokeStyle = accent;
+        g.lineWidth = isModal ? 3 : 2;
+        g.stroke();
+
+        if (p.emitting && p.yieldFactor > 0 && p.KE > 0 && p.KE <= 5) {
+            const sx = X(-p.KE);
+            g.save();
+            g.setLineDash([4, 4]);
+            g.strokeStyle = "rgba(251,191,36,0.85)";
+            g.lineWidth = isModal ? 2 : 1.5;
+            g.beginPath();
+            g.moveTo(sx, top);
+            g.lineTo(sx, top + ph);
+            g.stroke();
+            g.restore();
+            g.fillStyle = "#fbbf24";
+            g.font = isModal ? "bold 13px 'Segoe UI', Arial, sans-serif" : "10px 'Segoe UI', Arial, sans-serif";
+            g.textAlign = sx > left + pw * 0.5 ? "right" : "left";
+            // FIX: previously negated a string ((-p.KE.toFixed(2))), losing trailing zeros
+            g.fillText("−V₀ = −" + p.KE.toFixed(2) + " V", sx + (sx > left + pw * 0.5 ? -6 : 6), top + (isModal ? 16 : 10));
+        }
+
+        const mx = X(p.V), my = Y(meterCurrent);
+        g.save();
+        g.setLineDash([2, 3]);
+        g.strokeStyle = "rgba(255,255,255,0.45)";
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(mx, my);
+        g.lineTo(mx, top + ph);
+        g.moveTo(mx, my);
+        g.lineTo(left, my);
+        g.stroke();
+        g.restore();
+
+        g.fillStyle = "#fbbf24";
+        g.strokeStyle = "#ffffff";
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(mx, my, isModal ? 6 : 4, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+    }
+
+    function drawGraph(p) {
+        const w = graphCanvas.clientWidth || 320;
+        const h = graphCanvas.clientHeight || 140;
+        renderIVGraphOnContext(gctx, w, h, p, false);
+
+        if (isModalOpen) {
+            const mw = modalGraphCanvas.clientWidth || 800;
+            const mh = modalGraphCanvas.clientHeight || 450;
+            renderIVGraphOnContext(mgctx, mw, mh, p, true);
+        }
+    }
+
+    // Animation loop
+    function animate(currentTime) {
+        const deltaTime = (currentTime - lastTime) / 1000;
+        lastTime = currentTime;
+        const dt = Math.max(0, Math.min(deltaTime, 0.05));   // FIX: never negative
+
+        const physics = getPhysics();
+        multiMode = physics.multi;
+        lightRGB = getLightColor();
+
+        atomicTimer += dt;
+
+        if (sourcePowerOn) {
+            if (physics.multi) {
+                pulseTimer += dt;
+                if (pulseTimer > PULSE_INTERVAL) {
+                    pulseTimer = 0;
+                    if (physics.level > 0) createPulse(physics);
+                }
+            } else {
+                photonTimer += dt;
+                const photonsPerSecond = physics.level * 100 * 0.35;
+                if (photonTimer > 1 / Math.max(photonsPerSecond, 1)) {
+                    if (physics.level > 0) createPhoton();
+                    photonTimer = 0;
+                }
+            }
+        }
+
+        updatePhotons(dt);
+        updateElectrons(dt);
+
+        meterCurrent += (physics.current - meterCurrent) * Math.min(1, dt * 8);
+        flowPosition = (flowPosition + (15 + meterCurrent * 7) * dt) % FLOW_TOTAL;
+
+        const target = currentView === 'inside' ? 1 : 0;
+        if (viewBlend < target) viewBlend = Math.min(target, viewBlend + dt * 2.5);
+        else if (viewBlend > target) viewBlend = Math.max(target, viewBlend - dt * 2.5);
+
+        draw(physics);
+        drawGraph(physics);
+
+        requestAnimationFrame(animate);
+    }
+
+    function updateViewModeUI() {
+        const isMp = multiphoton.checked;
+        atomicButton.style.display = isMp ? "inline-block" : "none";
+
+        if (currentView === 'atomic') {
+            atomicButton.textContent = "Back to apparatus";
+            atomicButton.classList.add("active");
+            zoomButton.textContent = "Show inside tube";
+            viewCaption.textContent = "Atomic level: Multiphoton excitation ladder & step-by-step emission";
+        } else if (currentView === 'inside') {
+            atomicButton.textContent = "At atomic level";
+            atomicButton.classList.remove("active");
+            zoomButton.textContent = "Back to apparatus";
+            viewCaption.textContent = isMp
+                ? "Inside UHV chamber (Click window to toggle power)"
+                : "Inside evacuated tube (Click window to toggle power)";
+        } else {
+            atomicButton.textContent = "At atomic level";
+            atomicButton.classList.remove("active");
+            zoomButton.textContent = "Show inside tube";
+            viewCaption.textContent = isMp
+                ? "Femtosecond laser experiment (Click laser to toggle power)"
+                : "Apparatus setup (Click lamp to toggle power)";
+        }
+    }
+
+    function applyMode() {
+        const on = multiphoton.checked;
+        document.body.classList.toggle("mp", on);
+        mpInfo.style.display = on ? "block" : "none";
+        intensityLabel.textContent = on ? "Laser Intensity:" : "Intensity:";
+
+        if (!on && currentView === 'atomic') {
+            currentView = 'apparatus';
+        }
+        updateViewModeUI();
+    }
+
+    multiphoton.addEventListener("change", function () {
+        if (multiphoton.checked) {
+            savedSettings = { metalIndex: metal.selectedIndex, wavelength: wavelengthInput.value };
+            wavelengthInput.min = 700;
+            wavelengthInput.max = 1000;
+            wavelengthInput.value = 800;
+            metal.selectedIndex = GOLD_INDEX;
+        } else {
+            wavelengthInput.min = 250;
+            wavelengthInput.max = 1000;
+            if (savedSettings) {
+                wavelengthInput.value = savedSettings.wavelength;
+                metal.selectedIndex = savedSettings.metalIndex;
+            }
+        }
+        photons = [];
+        electrons = [];
+        applyMode();
+        updatePhysicsDisplay();
+    });
+
+    metal.addEventListener("change", updatePhysicsDisplay);
+    wavelengthInput.addEventListener("input", updatePhysicsDisplay);
+    intensity.addEventListener("input", function() {
+        if (!sourcePowerOn && Number(intensity.value) > 0) {
+            sourcePowerOn = true;
+        }
+        updatePhysicsDisplay();
+    });
+    voltage.addEventListener("input", updatePhysicsDisplay);
+
+    zoomButton.addEventListener("click", function () {
+        currentView = (currentView === 'inside') ? 'apparatus' : 'inside';
+        updateViewModeUI();
+    });
+
+    atomicButton.addEventListener("click", function () {
+        currentView = (currentView === 'atomic') ? 'apparatus' : 'atomic';
+        atomicTimer = 0;
+        updateViewModeUI();
+    });
+
+    window.addEventListener("load", function() {
+        resizeAll();
+        applyMode();
+        updatePhysicsDisplay();
+        requestAnimationFrame(animate);
+    });
+
+    setTimeout(function() {
+        resizeAll();
+        updatePhysicsDisplay();
+    }, 100);
+</script>
+
+</body>
+</html>
